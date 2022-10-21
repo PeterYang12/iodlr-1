@@ -1,0 +1,13 @@
+diff --git a/Zend/zend_operators.h b/Zend/zend_operators.h
+index d543b7b03c..fb97eef738 100644
+--- a/Zend/zend_operators.h
++++ b/Zend/zend_operators.h
+@@ -347,7 +347,7 @@ ZEND_API bool ZEND_FASTCALL zend_object_is_true(zval *op);
+ #define zval_is_true(op) \
+ 	zend_is_true(op)
+ 
+-static zend_always_inline bool i_zend_is_true(zval *op)
++static __attribute__((__indirect_return__)) zend_always_inline bool i_zend_is_true(zval *op)
+ {
+ 	bool result = 0;
+ 

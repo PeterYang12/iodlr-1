@@ -1,0 +1,118 @@
+FROM ubuntu:22.04
+LABEL authors="yuhan.yang@intel.com"
+ENV USERNAME="base"
+
+ARG INSTALL_DIR
+ARG DEBIAN_FRONTEND="noninteractive"
+ARG TZ="America/Los_Angeles"
+ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+
+# Install required packages that are not included in ubuntu core image and mariadb
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    apt-transport-https \
+    vim \
+    git \
+    wget \
+    python3-pip \
+    sudo \
+    linux-tools-common \
+    libssl-dev \
+    php-mysql \
+    php \
+    php-fpm \
+    libonig5 \
+    libpcre3 \
+    libpcre3-dev \
+    mariadb-server \
+    pkg-config \
+    build-essential \
+    autoconf \
+    bison \
+    re2c \
+    libxml2-dev \
+    siege \
+    nginx \
+    gcc \
+    g++ \
+    libsqlite3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create a new Linux account
+RUN useradd -rm -d /home/${USERNAME} -s /bin/bash -g root -G sudo -u 1001 ${USERNAME} && \
+    echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
+
+# Switch to ${USERNAME}
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+# Clone and install oss-performance
+# If WP not 4.2, download and update with wordpressversion, replace WP4.2 database dump with WP5.2, and change URLs list, remove WP4.2
+ARG wordpressversion=5.6
+RUN git clone --depth 1 -b v1.3 https://github.com/intel/Updates-for-OSS-Performance oss-performance && \
+    cd oss-performance && \
+    cd /home/${USERNAME}/oss-performance/targets/wordpress && \
+    if [ $wordpressversion != 4.2 ] ; then \
+        wget https://wordpress.org/wordpress-${wordpressversion}.tar.gz && \
+        sed -i "s/4.2.0/${wordpressversion}/g" WordpressTarget.php && \
+        mv WordpressTarget_v5.urls WordpressTarget.urls && \
+        mv dbdump_v5.sql.gz dbdump.sql.gz && \
+        rm wordpress-4.2.0.tar.gz; \
+    fi
+
+WORKDIR /home/${USERNAME}/oss-performance
+RUN wget https://getcomposer.org/installer -O composer-setup.php && \
+    php composer-setup.php && \
+    php composer.phar install && \
+    # Basic environment tuning
+    echo "soft nofile 1000000\nhard nofile 1000000" | sudo tee -a /etc/security/limits.conf
+
+ARG PHP_VER=8.0.18
+RUN cd /home/${USERNAME}/ && \
+    git clone https://github.com/php/php-src.git && \
+    cd php-src && \
+    git checkout php-${PHP_VER} && \
+    ./buildconf --force && \
+    CC="gcc -fcf-protection=return" ./configure --enable-fpm --with-mysqli --with-pdo-mysql --enable-pcntl && \
+    make -j
+
+# MariaDB Tuning to disable query cache
+COPY files/1s-bkm.j2 /home/${USERNAME}
+COPY files/2s-bkm.j2 /home/${USERNAME}
+RUN sudo cp /home/${USERNAME}/2s-bkm.j2 /etc/mysql/mariadb.cnf && \
+    # Create new MariaDB account "wp_bench" and database "wp_bench"
+    sudo service mariadb start && \
+    sleep 1 && \
+    sudo mysqladmin -u root password "" && \
+    sudo mysql -u root -e "CREATE USER 'wp_bench'@'localhost' IDENTIFIED BY 'wp_bench'" && \
+    sudo mysql -u root -e "GRANT ALL PRIVILEGES on *.* to 'wp_bench'@'localhost' IDENTIFIED BY 'wp_bench'" && \
+    sudo mysql -u root -e "CREATE DATABASE wp_bench" && \
+    sudo mysql -u root -e "FLUSH PRIVILEGES" && \
+    sudo service mariadb stop
+
+
+# build siege with ssl, Uninstall & Reinstall
+# Build and install siege 4.1.5.
+ARG SIEGE_VERSION='siege-4.1.5'
+RUN cd /home/${USERNAME}; \
+    wget http://download.joedog.org/siege/${SIEGE_VERSION}.tar.gz && \
+    tar zxf ${SIEGE_VERSION}.tar.gz
+WORKDIR /home/${USERNAME}/${SIEGE_VERSION}
+RUN ./configure  && \
+    make -j && \
+    sudo make install
+
+WORKDIR /home/${USERNAME}/oss-performance
+COPY --chown=${USERNAME}:root files/update_nginx_workers.sh /usr/local/bin/update_nginx_workers.sh
+COPY --chown=${USERNAME}:root files/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sudo sed -r --expression='s/(exec "\$\@")/\/usr\/local\/bin\/update_nginx_workers\.sh\n\1/g' -i /usr/local/bin/entrypoint.sh
+USER ${USERNAME}
+
+RUN cp /home/${USERNAME}/php-src/modules/opcache.so /home/${USERNAME}/oss-performance
+RUN cp /home/${USERNAME}/php-src/sapi/fpm/php-fpm /home/${USERNAME}/oss-performance
+COPY --chown=${USERNAME}:root files/quickrun.sh /home/${USERNAME}/oss-performance
+COPY --chown=${USERNAME}:root files/php-base.ini /home/${USERNAME}/oss-performance/conf/php.ini
+RUN chmod +x /home/${USERNAME}/oss-performance/quickrun.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD [ "bash" ]

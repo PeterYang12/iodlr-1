@@ -1,0 +1,245 @@
+diff --git a/ext/opcache/jit/dynasm/dasm_x86.lua b/ext/opcache/jit/dynasm/dasm_x86.lua
+index 0c94a7b5f7..a07bb08199 100644
+--- a/ext/opcache/jit/dynasm/dasm_x86.lua
++++ b/ext/opcache/jit/dynasm/dasm_x86.lua
+@@ -1154,6 +1154,8 @@ local map_op = {
+   rep_0 =	"F3",
+   repe_0 =	"F3",
+   repz_0 =	"F3",
++  endbr32_0 =	"F30F1EFB",
++  endbr64_0 =	"F30F1EFA",
+   -- F4: *hlt
+   cmc_0 =	"F5",
+   -- F6: test... mb,i; div... mb
+diff --git a/ext/opcache/jit/zend_jit.c b/ext/opcache/jit/zend_jit.c
+index 920020fb2d..f1a383e5ba 100644
+--- a/ext/opcache/jit/zend_jit.c
++++ b/ext/opcache/jit/zend_jit.c
+@@ -348,7 +348,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
+ //#else
+ 		if (!(ssa->cfg.blocks[b].flags & (ZEND_BB_START|ZEND_BB_ENTRY|ZEND_BB_RECV_ENTRY))) {
+ //#endif
+-			zend_jit_label(dasm_state, ssa->cfg.blocks_count + b);
++			zend_jit_label_yyh(dasm_state, ssa->cfg.blocks_count + b);
+ 			zend_jit_prologue(dasm_state);
+ 			if (ra) {
+ 				int i;
+@@ -2182,7 +2182,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 					zend_jit_jmp(&dasm_state, b);
+ 				}
+ 			}
+-			zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++			zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 			zend_jit_prologue(&dasm_state);
+ 		} else
+ //#endif
+@@ -2195,9 +2195,9 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 						if (recv_emitted) {
+ 							zend_jit_jmp(&dasm_state, b);
+ 						}
+-						zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++						zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 						for (i = 1; (opline+i)->opcode == ZEND_RECV_INIT; i++) {
+-							zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b + i);
++							zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b + i);
+ 						}
+ 						zend_jit_prologue(&dasm_state);
+ 					}
+@@ -2208,7 +2208,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 						continue;
+ 					} else if (recv_emitted) {
+ 						zend_jit_jmp(&dasm_state, b);
+-						zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++						zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 						zend_jit_prologue(&dasm_state);
+ 					} else {
+ 						zend_arg_info *arg_info;
+@@ -2225,7 +2225,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 							/* skip */
+ 							continue;
+ 						}
+-						zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++						zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 						zend_jit_prologue(&dasm_state);
+ 						recv_emitted = 1;
+ 					}
+@@ -2243,7 +2243,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 						}
+ 						return SUCCESS;
+ 					}
+-					zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++					zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 					zend_jit_prologue(&dasm_state);
+ 					recv_emitted = 1;
+ 				}
+@@ -2258,14 +2258,14 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 				}
+ 				return SUCCESS;
+ 			} else {
+-				zend_jit_label(&dasm_state, ssa->cfg.blocks_count + b);
++				zend_jit_label_yyh(&dasm_state, ssa->cfg.blocks_count + b);
+ 				zend_jit_prologue(&dasm_state);
+ 			}
+ 		}
+ 
+ 		is_terminated = 0;
+ 
+-		zend_jit_label(&dasm_state, b);
++		zend_jit_label_yyh(&dasm_state, b);
+ 		if (JIT_G(opt_level) < ZEND_JIT_LEVEL_INLINE) {
+ 			if ((ssa->cfg.blocks[b].flags & ZEND_BB_FOLLOW)
+ 			  && ssa->cfg.blocks[b].start != 0
+@@ -3007,7 +3007,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op
+ 								goto done;
+ 							}
+ 							jit_return_label = ssa->cfg.blocks_count * 2;
+-							if (!zend_jit_label(&dasm_state, jit_return_label)) {
++							if (!zend_jit_label_yyh(&dasm_state, jit_return_label)) {
+ 								goto jit_failure;
+ 							}
+ 							for (j = 0 ; j < op_array->last_var; j++) {
+diff --git a/ext/opcache/jit/zend_jit_x86.dasc b/ext/opcache/jit/zend_jit_x86.dasc
+index b30a9952ca..f450d56b08 100644
+--- a/ext/opcache/jit/zend_jit_x86.dasc
++++ b/ext/opcache/jit/zend_jit_x86.dasc
+@@ -1632,6 +1632,22 @@ static void* dasm_labels[zend_lb_MAX];
+ ||	}
+ |.endmacro
+ 
++|.macro ENDBR
++||#if defined (__CET__) && (__CET__ & 1) != 0
++|	.if X64
++|		endbr64
++|	.else
++|		endbr32
++|	.endif
++||#endif
++|.endmacro
++
++#if defined (__CET__) && (__CET__ & 1) != 0
++# define ENDBR_PADDING 4
++#else
++# define ENDBR_PADDING 0
++#endif
++
+ static zend_bool reuse_ip = 0;
+ static zend_bool delayed_call_chain = 0;
+ static uint32_t  delayed_call_level = 0;
+@@ -2344,6 +2360,7 @@ static int zend_jit_hybrid_hot_code_stub(dasm_State **Dst)
+  */
+ static int zend_jit_hybrid_hot_counter_stub(dasm_State **Dst, uint32_t cost)
+ {
++	|	ENDBR
+ 	|	mov r0, EX->func
+ 	|	mov r1, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 	|	mov r2, aword [r1 + offsetof(zend_jit_op_array_hot_extension, counter)]
+@@ -2414,6 +2431,7 @@ static int zend_jit_hybrid_hot_trace_stub(dasm_State **Dst)
+ 
+ static int zend_jit_hybrid_trace_counter_stub(dasm_State **Dst, uint32_t cost)
+ {
++	|	ENDBR
+ 	|	mov r0, EX->func
+ 	|	mov r1, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 	|	mov r1, aword [r1 + offsetof(zend_jit_op_array_trace_extension, offset)]
+@@ -2635,17 +2653,19 @@ static int zend_jit_trace_escape_stub(dasm_State **Dst)
+ }
+ 
+ /* Keep 32 exit points in a single code block */
+-#define ZEND_JIT_EXIT_POINTS_SPACING   4  // push byte + short jmp = bytes
+-#define ZEND_JIT_EXIT_POINTS_PER_GROUP 32 // number of continuous exit points
++#define ZEND_JIT_EXIT_POINTS_SPACING   8  // push byte + short jmp = bytes
++#define ZEND_JIT_EXIT_POINTS_PER_GROUP 16 // number of continuous exit points
+ 
+ static int zend_jit_trace_exit_group_stub(dasm_State **Dst, uint32_t n)
+ {
+ 	uint32_t i;
+ 
+ 	for (i = 0; i < ZEND_JIT_EXIT_POINTS_PER_GROUP - 1; i++) {
++		|	ENDBR
+ 		|	push byte i
+-		|	.byte 0xeb, (4*(ZEND_JIT_EXIT_POINTS_PER_GROUP-i)-6) // jmp >1
++		|	.byte 0xeb, (8*(ZEND_JIT_EXIT_POINTS_PER_GROUP-i)-10) // jmp >1
+ 	}
++	|	ENDBR
+ 	|	push byte i
+ 	|// 1:
+ 	|	add aword [r4], n
+@@ -3043,6 +3063,7 @@ static int zend_jit_align_func(dasm_State **Dst)
+ 
+ static int zend_jit_prologue(dasm_State **Dst)
+ {
++	|	ENDBR
+ 	if (zend_jit_vm_kind == ZEND_VM_KIND_HYBRID) {
+ 		|	SUB_HYBRID_SPAD
+ 	} else if (GCC_GLOBAL_REGS) {
+@@ -3062,6 +3083,13 @@ static int zend_jit_label(dasm_State **Dst, unsigned int label)
+ 	return 1;
+ }
+ 
++static int zend_jit_label_yyh(dasm_State **Dst, unsigned int label)
++{
++	|=>label:
++	|        ENDBR
++	return 1;
++}
++
+ static int zend_jit_save_call_chain(dasm_State **Dst, uint32_t call_level)
+ {
+ 	|	// call->prev_execute_data = EX(call);
+@@ -3096,6 +3124,7 @@ static int zend_jit_set_ip(dasm_State **Dst, const zend_op *opline)
+ 
+ static int zend_jit_set_ip_ex(dasm_State **Dst, const zend_op *opline, bool set_ip_reg)
+ {
++	|	ENDBR
+ 	if (last_valid_opline == opline) {
+ 		zend_jit_use_last_valid_opline();
+ 	} else if (GCC_GLOBAL_REGS && last_valid_opline) {
+@@ -3184,6 +3213,7 @@ static int zend_jit_check_exception_undef_result(dasm_State **Dst, const zend_op
+ 
+ static int zend_jit_trace_begin(dasm_State **Dst, uint32_t trace_num, zend_jit_trace_info *parent, uint32_t exit_num)
+ {
++	|	ENDBR
+ 	zend_regset regset = ZEND_REGSET_SCRATCH;
+ 
+ #if ZTS
+@@ -3443,7 +3473,7 @@ static int zend_jit_trace_link_to_root(dasm_State **Dst, zend_jit_trace_info *t,
+ 		prologue_size = 13;
+ #endif
+ 	}
+-	link_addr = (const void*)((const char*)t->code_start + prologue_size);
++	link_addr = (const void*)((const char*)t->code_start + prologue_size + ENDBR_PADDING);
+ 
+ 	if (timeout_exit_addr) {
+ 		/* Check timeout for links to LOOP */
+@@ -14878,6 +14908,7 @@ static int zend_jit_switch(dasm_State **Dst, const zend_op *opline, const zend_o
+ 					} while (count);
+ 					|.code
+ 					|3:
++					|	ENDBR
+ 				} else {
+ 					|	LOAD_ADDR FCARG1a, jumptable
+ 					|	EXT_CALL zend_hash_index_find, r0
+@@ -14885,6 +14916,7 @@ static int zend_jit_switch(dasm_State **Dst, const zend_op *opline, const zend_o
+ 						return 0;
+ 					}
+ 					|3:
++					|	ENDBR
+ 				}
+ 			}
+ 		} else if (opline->opcode == ZEND_SWITCH_STRING) {
+@@ -14926,6 +14958,7 @@ static int zend_jit_switch(dasm_State **Dst, const zend_op *opline, const zend_o
+ 					return 0;
+ 				}
+ 				|3:
++				|	ENDBR
+ 			}
+ 		} else if (opline->opcode == ZEND_MATCH) {
+ 			if (op1_info & (MAY_BE_LONG|MAY_BE_STRING)) {
+@@ -15003,6 +15036,7 @@ static int zend_jit_switch(dasm_State **Dst, const zend_op *opline, const zend_o
+ 				|	jmp =>default_b
+ 			}
+ 			|3:
++			|	ENDBR
+ 		} else {
+ 			ZEND_UNREACHABLE();
+ 		}
