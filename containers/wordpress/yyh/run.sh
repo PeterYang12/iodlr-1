@@ -143,8 +143,10 @@ fi
 for container_id in ${all_containers[@]}; do
     docker logs -f ${container_id} >${tmp_dir}/${container_id}.log &
 done
-echo "yyh---"
-sleep 10
+
+# collect emon data 
+./collect-spr-emon.sh
+
 # Wait all container to be completed
 while true; do
     completed=0
@@ -183,3 +185,6 @@ echo "Total TPS: ${total_tps}"
 
 # Remove temp directory
 rm -rf ${tmp_dir}
+
+# process emon data
+./process-spr-emon-data.sh ${total_tps}
