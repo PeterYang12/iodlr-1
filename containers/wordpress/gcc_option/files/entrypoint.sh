@@ -58,6 +58,6 @@ echo 1 | sudo tee /proc/sys/net/ipv4/tcp_tw_reuse
 
 # Start database daemon
 echo -e "Starting database daemon"
-sudo service mysql start
+sudo service mariadb start
 
 exec "$@"

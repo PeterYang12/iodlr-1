@@ -1,3 +1,49 @@
+FROM ubuntu:22.04 AS bolter
+ENV TZ=America/Los_Angeles
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update; \
+            apt-get install -y \
+            sysbench \
+            git \
+            build-essential \
+            cmake \
+            ninja-build \
+            apt-transport-https \
+            curl \
+            software-properties-common \
+            devscripts \
+            equivs \
+            gnutls-dev \
+            gcc-12 \
+            g++-12 \
+            libjemalloc-dev; \
+            rm -rf /var/lib/apt/lists
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
+
+RUN curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mariadb.org/mariadb_release_signing_key.asc'; \
+    sh -c "echo 'deb https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main' >>/etc/apt/sources.list"; \
+    add-apt-repository --update --yes --enable-source 'deb [arch=amd64] https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main'; \
+    apt-get build-dep -y mariadb-10.6;
+
+WORKDIR /home
+
+RUN git clone --depth 1  --branch 10.6 https://github.com/MariaDB/server.git
+#
+RUN mkdir build-mariadb; \
+    cd build-mariadb; \
+    cmake ../server \
+    -DBUILD_CONFIG=mysql_release \
+    -DCMAKE_SYSTEM_PROCESSOR=amd64 \
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--emit-relocs,-znow" \
+    -DCMAKE_C_FLAGS="-g -mrelax-cmpxchg-loop" \
+    -DCMAKE_CXX_FLAGS="-g -mrelax-cmpxchg-loop" \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DWITH_JEMALLOC=yes \
+    -DPLUGIN_AUTH_SOCKET=STATIC \
+    -DWITH_SSL=bundled; \
+    make -j;
+
 FROM ubuntu:22.04
 LABEL authors="yuhan.yang@intel.com"
 ENV USERNAME="base"
@@ -114,5 +160,6 @@ COPY --chown=${USERNAME}:root files/quickrun.sh /home/${USERNAME}/oss-performanc
 COPY --chown=${USERNAME}:root files/php-base.ini /home/${USERNAME}/oss-performance/conf/php.ini
 RUN chmod +x /home/${USERNAME}/oss-performance/quickrun.sh
 
+COPY --from=bolter /home/build-mariadb/sql/mariadbd /usr/sbin/mariadbd
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD [ "bash" ]
