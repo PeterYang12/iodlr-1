@@ -58,3 +58,12 @@ services:
         PHP_VER: 8.0.18
         baseimage: wp5.6_php8.0_base_https
     image: wp5.6_php8.0_opt_https
+
+  wp6.2_php8.2_base_https:
+    build:
+      context: ./gcc_option
+      dockerfile: Dockerfile
+      args:
+        PHP_VER: 8.2.6
+        wordpressversion: 6.2
+    image: wp6.2_php8.2_base_https
