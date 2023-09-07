@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS bolter
+FROM ubuntu:23.04 AS bolter
 ENV TZ=America/Los_Angeles
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -15,21 +15,22 @@ RUN apt-get update; \
             devscripts \
             equivs \
             gnutls-dev \
-            gcc-12 \
-            g++-12 \
+            gcc \
+            g++ \
             libjemalloc-dev; \
             rm -rf /var/lib/apt/lists
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
+# RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 && \
+#     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
 
 RUN curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mariadb.org/mariadb_release_signing_key.asc'; \
-    sh -c "echo 'deb https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main' >>/etc/apt/sources.list"; \
-    add-apt-repository --update --yes --enable-source 'deb [arch=amd64] https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main'; \
-    apt-get build-dep -y mariadb-10.6;
+    sh -c "echo 'deb https://mirrors.xtom.com/mariadb/repo/10.11/ubuntu lunar main' >>/etc/apt/sources.list"; \
+    add-apt-repository --update --yes --enable-source \
+       'deb [arch=amd64] http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.11/ubuntu '$(lsb_release -sc)' main'; \
+    apt-get build-dep -y mariadb;
 
 WORKDIR /home
 
-RUN git clone --depth 1  --branch 10.6 https://github.com/MariaDB/server.git
+RUN git clone --depth 1  --branch 10.11 https://github.com/MariaDB/server.git
 #
 RUN mkdir build-mariadb; \
     cd build-mariadb; \
@@ -44,7 +45,7 @@ RUN mkdir build-mariadb; \
     -DWITH_SSL=bundled; \
     make -j;
 
-FROM ubuntu:22.04
+FROM ubuntu:23.04
 LABEL authors="yuhan.yang@intel.com"
 ENV USERNAME="base"
 
@@ -94,7 +95,7 @@ WORKDIR /home/${USERNAME}
 
 # Clone and install oss-performance
 # If WP not 4.2, download and update with wordpressversion, replace WP4.2 database dump with WP5.2, and change URLs list, remove WP4.2
-ARG wordpressversion=5.6
+ARG wordpressversion=6.2
 RUN git clone --depth 1 -b v1.3 https://github.com/intel/Updates-for-OSS-Performance oss-performance && \
     cd oss-performance && \
     cd /home/${USERNAME}/oss-performance/targets/wordpress && \
@@ -113,7 +114,7 @@ RUN wget https://getcomposer.org/installer -O composer-setup.php && \
     # Basic environment tuning
     echo "soft nofile 1000000\nhard nofile 1000000" | sudo tee -a /etc/security/limits.conf
 
-ARG PHP_VER=8.0.18
+ARG PHP_VER=8.2.6
 RUN cd /home/${USERNAME}/ && \
     git clone https://github.com/php/php-src.git && \
     cd php-src && \
