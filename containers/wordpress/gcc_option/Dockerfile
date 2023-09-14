@@ -158,7 +158,7 @@ USER ${USERNAME}
 RUN cp /home/${USERNAME}/php-src/modules/opcache.so /home/${USERNAME}/oss-performance
 RUN cp /home/${USERNAME}/php-src/sapi/fpm/php-fpm /home/${USERNAME}/oss-performance
 COPY --chown=${USERNAME}:root files/quickrun.sh /home/${USERNAME}/oss-performance
-COPY --chown=${USERNAME}:root files/php-base.ini /home/${USERNAME}/oss-performance/conf/php.ini
+COPY --chown=${USERNAME}:root files/php-opt.ini /home/${USERNAME}/oss-performance/conf/php.ini
 RUN chmod +x /home/${USERNAME}/oss-performance/quickrun.sh
 
 COPY --from=bolter /home/build-mariadb/sql/mariadbd /usr/sbin/mariadbd
