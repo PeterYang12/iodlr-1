@@ -1,0 +1,75 @@
+diff --git a/containers/wordpress/gcc_option/Dockerfile b/containers/wordpress/gcc_option/Dockerfile
+index acf69b7..c3a13e9 100644
+--- a/containers/wordpress/gcc_option/Dockerfile
++++ b/containers/wordpress/gcc_option/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM ubuntu:23.04 AS bolter
++FROM ubuntu:22.04 AS bolter
+ ENV TZ=America/Los_Angeles
+ ENV DEBIAN_FRONTEND noninteractive
+ 
+@@ -23,14 +23,13 @@ RUN apt-get update; \
+ #     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
+ 
+ RUN curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mariadb.org/mariadb_release_signing_key.asc'; \
+-    sh -c "echo 'deb https://mirrors.xtom.com/mariadb/repo/10.11/ubuntu lunar main' >>/etc/apt/sources.list"; \
+-    add-apt-repository --update --yes --enable-source \
+-       'deb [arch=amd64] http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.11/ubuntu '$(lsb_release -sc)' main'; \
+-    apt-get build-dep -y mariadb;
++    sh -c "echo 'deb https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main' >>/etc/apt/sources.list"; \
++    add-apt-repository --update --yes --enable-source 'deb [arch=amd64] https://mirrors.xtom.com/mariadb/repo/10.6/ubuntu jammy main'; \
++   apt-get build-dep -y mariadb-10.6;
+ 
+ WORKDIR /home
+ 
+-RUN git clone --depth 1  --branch 10.11 https://github.com/MariaDB/server.git
++RUN git clone --depth 1  --branch 10.6 https://github.com/MariaDB/server.git
+ #
+ RUN mkdir build-mariadb; \
+     cd build-mariadb; \
+@@ -38,14 +37,14 @@ RUN mkdir build-mariadb; \
+     -DBUILD_CONFIG=mysql_release \
+     -DCMAKE_SYSTEM_PROCESSOR=amd64 \
+     -DCMAKE_EXE_LINKER_FLAGS="-Wl,--emit-relocs,-znow" \
+-    -DCMAKE_C_FLAGS="-g -mrelax-cmpxchg-loop" \
+-    -DCMAKE_CXX_FLAGS="-g -mrelax-cmpxchg-loop" \
++    -DCMAKE_C_FLAGS="-g" \
++    -DCMAKE_CXX_FLAGS="-g" \
+     -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DWITH_JEMALLOC=yes \
+     -DPLUGIN_AUTH_SOCKET=STATIC \
+     -DWITH_SSL=bundled; \
+     make -j;
+ 
+-FROM ubuntu:23.04
++FROM ubuntu:22.04
+ LABEL authors="yuhan.yang@intel.com"
+ ENV USERNAME="base"
+ 
+@@ -115,10 +114,14 @@ RUN wget https://getcomposer.org/installer -O composer-setup.php && \
+     echo "soft nofile 1000000\nhard nofile 1000000" | sudo tee -a /etc/security/limits.conf
+ 
+ ARG PHP_VER=8.2.6
++COPY easy-pause2-826.patch /home/${USERNAME}/
++# COPY 0001-JIT-buffer-relocation-and-2-PHP8.1.4-performance.patch /home/${USERNAME}/
+ RUN cd /home/${USERNAME}/ && \
+     git clone https://github.com/php/php-src.git && \
+     cd php-src && \
+     git checkout php-${PHP_VER} && \
++    # git apply /home/${USERNAME}/0001-JIT-buffer-relocation-and-2-PHP8.1.4-performance.patch && \
++    git apply /home/${USERNAME}/easy-pause2-826.patch && \
+     ./buildconf --force && \
+     ./configure --enable-fpm --with-mysqli --with-pdo-mysql --enable-pcntl && \
+     make -j
+@@ -158,9 +161,9 @@ USER ${USERNAME}
+ RUN cp /home/${USERNAME}/php-src/modules/opcache.so /home/${USERNAME}/oss-performance
+ RUN cp /home/${USERNAME}/php-src/sapi/fpm/php-fpm /home/${USERNAME}/oss-performance
+ COPY --chown=${USERNAME}:root files/quickrun.sh /home/${USERNAME}/oss-performance
+-COPY --chown=${USERNAME}:root files/php-base.ini /home/${USERNAME}/oss-performance/conf/php.ini
++COPY --chown=${USERNAME}:root files/php-opt.ini /home/${USERNAME}/oss-performance/conf/php.ini
+ RUN chmod +x /home/${USERNAME}/oss-performance/quickrun.sh
+ 
+-COPY --from=bolter /home/build-mariadb/sql/mariadbd /usr/sbin/mariadbd
++# COPY --from=bolter /home/build-mariadb/sql/mariadbd /usr/sbin/mariadbd
+ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ CMD [ "bash" ]
+\ No newline at end of file

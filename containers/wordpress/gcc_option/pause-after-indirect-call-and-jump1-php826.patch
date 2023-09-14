@@ -1,0 +1,145 @@
+diff --git a/ext/opcache/jit/zend_jit_x86.dasc b/ext/opcache/jit/zend_jit_x86.dasc
+index d4a87d068c..ce92aea5a0 100644
+--- a/ext/opcache/jit/zend_jit_x86.dasc
++++ b/ext/opcache/jit/zend_jit_x86.dasc
+@@ -376,6 +376,7 @@ static size_t tsrm_tls_offset;
+ ||		} else {
+ |			LOAD_ADDR tmp_reg, func
+ |			jmp tmp_reg
++|			pause
+ ||		}
+ |	.else
+ |		jmp dword &func
+@@ -436,9 +437,11 @@ static size_t tsrm_tls_offset;
+ |.macro JMP_IP
+ ||	if (GCC_GLOBAL_REGS) {
+ |		jmp aword [IP]
++|		pause
+ ||	} else {
+ |		mov r0, aword EX:FCARG1a->opline
+ |		jmp aword [r0]
++|		pause
+ ||	}
+ |.endmacro
+ 
+@@ -2269,6 +2272,7 @@ static int zend_jit_hybrid_profile_jit_stub(dasm_State **Dst)
+ 	|	inc aword [r2 + zend_jit_profile_counter_rid * sizeof(void*)]
+ 	|	// return ((zend_vm_opcode_handler_t)jit_extension->orig_handler)()
+ 	|	jmp aword [r0 + offsetof(zend_jit_op_array_extension, orig_handler)]
++	|	pause
+ 	return 1;
+ }
+ 
+@@ -2331,6 +2335,7 @@ static int zend_jit_hybrid_hot_counter_stub(dasm_State **Dst, uint32_t cost)
+ 	|	.endif
+ 	|	.if X64
+ 	|		jmp aword [r1+r2+offsetof(zend_jit_op_array_hot_extension, orig_handlers)]
++	|	pause
+ 	|	.else
+ 	|		jmp aword [r1+r2+offsetof(zend_jit_op_array_hot_extension, orig_handlers)]
+ 	|	.endif
+@@ -2392,6 +2397,7 @@ static int zend_jit_hybrid_trace_counter_stub(dasm_State **Dst, uint32_t cost)
+ 	|	sub word [r2], cost
+ 	|	jle ->hybrid_hot_trace
+ 	|	jmp aword [IP + r1]
++	|	pause
+ 	return 1;
+ }
+ 
+@@ -2559,12 +2565,14 @@ static int zend_jit_trace_exit_stub(dasm_State **Dst)
+ 		|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 		|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 		|	jmp aword [IP + r0]
++		|	pause
+ 	} else if (GCC_GLOBAL_REGS) {
+ 		|	add r4, SPAD // stack alignment
+ 		|	mov r0, EX->func
+ 		|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 		|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 		|	jmp aword [IP + r0]
++		|	pause
+ 	} else {
+ 		|	mov IP, aword EX->opline
+ 		|	mov FCARG1a, FP
+@@ -2572,6 +2580,7 @@ static int zend_jit_trace_exit_stub(dasm_State **Dst)
+ 		|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 		|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 		|	call aword [IP + r0]
++		|	pause
+ 		|	test eax, eax
+ 		|	jl ->trace_halt
+ 		|	mov FP, aword T2 // restore FP
+@@ -2633,9 +2642,11 @@ static int zend_jit_context_threaded_call_stub(dasm_State **Dst)
+ 	if (zend_jit_vm_kind == ZEND_VM_KIND_HYBRID) {
+ 		|	ADD_HYBRID_SPAD
+ 		|	jmp aword [IP]
++		|	pause
+ 	} else if (GCC_GLOBAL_REGS) {
+ 		|	add r4, SPAD // stack alignment
+ 		|	jmp aword [IP]
++		|	pause
+ 	} else {
+ 		ZEND_UNREACHABLE();
+ 		// TODO: context threading can't work without GLOBAL REGS because we have to change
+@@ -2646,6 +2657,7 @@ static int zend_jit_context_threaded_call_stub(dasm_State **Dst)
+ 		|	mov RX, aword T3 // restore IP
+ 		|	add r4, NR_SPAD // stack alignment
+ 		|	jmp aword [r0]
++		|	pause
+ 	}
+ 	return 1;
+ }
+@@ -3507,6 +3519,7 @@ static int zend_jit_trace_return(dasm_State **Dst, bool original_handler, const
+ 			|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 			|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 			|	jmp aword [IP + r0]
++			|	pause
+ 		}
+ 	} else if (GCC_GLOBAL_REGS) {
+ 		|	add r4, SPAD // stack alignment
+@@ -3517,6 +3530,7 @@ static int zend_jit_trace_return(dasm_State **Dst, bool original_handler, const
+ 			|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 			|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 			|	jmp aword [IP + r0]
++			|	pause
+ 		}
+ 	} else {
+ 		if (original_handler) {
+@@ -3525,6 +3539,7 @@ static int zend_jit_trace_return(dasm_State **Dst, bool original_handler, const
+ 			|	mov r0, aword [r0 + offsetof(zend_op_array, reserved[zend_func_info_rid])]
+ 			|	mov r0, aword [r0 + offsetof(zend_jit_op_array_trace_extension, offset)]
+ 			|	call aword [IP + r0]
++			|	pause
+ 		}
+ 		|	mov FP, aword T2 // restore FP
+ 		|	mov RX, aword T3 // restore IP
+@@ -10310,6 +10325,7 @@ static int zend_jit_do_fcall(dasm_State **Dst, const zend_op *opline, const zend
+ 				|	EXT_CALL func->internal_function.handler, r0
+ 			} else {
+ 				|	call aword [r0 + offsetof(zend_internal_function, handler)]
++				|	pause
+ 			}
+ 		}
+ 
+@@ -14820,8 +14836,10 @@ static int zend_jit_hash_jmp(dasm_State **Dst, const zend_op *opline, const zend
+ 	if (!IS_32BIT(dasm_end)) {
+ 		|	lea FCARG1a, aword [>4]
+ 		|	jmp aword [FCARG1a + r0]
++		|	pause
+ 	} else {
+ 		|	jmp aword [r0 + >4]
++		|	pause
+ 	}
+ 	|.else
+ 	|	jmp aword [r0 + >4]
+@@ -15001,8 +15019,10 @@ static int zend_jit_switch(dasm_State **Dst, const zend_op *opline, const zend_o
+ 						if (!IS_32BIT(dasm_end)) {
+ 							|	lea r0, aword [>4]
+ 							|	jmp aword [r0 + FCARG2a * 8]
++							|	pause
+ 						} else {
+ 							|	jmp aword [FCARG2a * 8 + >4]
++							|	pause
+ 						}
+ 					|.else
+ 					|	jmp aword [FCARG2a * 4 + >4]

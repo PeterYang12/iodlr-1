@@ -1,0 +1,20 @@
+diff --git a/ext/opcache/jit/zend_jit_x86.dasc b/ext/opcache/jit/zend_jit_x86.dasc
+index 81b5f53162..821dfcc1a0 100644
+--- a/ext/opcache/jit/zend_jit_x86.dasc
++++ b/ext/opcache/jit/zend_jit_x86.dasc
+@@ -358,6 +358,7 @@ static size_t tsrm_tls_offset;
+ ||		} else {
+ |			LOAD_ADDR tmp_reg, func
+ |			call tmp_reg
++|			pause
+ ||		}
+ |	.else
+ |		call dword &func
+@@ -371,6 +372,7 @@ static size_t tsrm_tls_offset;
+ ||		} else {
+ |			LOAD_ADDR tmp_reg, func
+ |			jmp tmp_reg
++|			pause
+ ||		}
+ |	.else
+ |		jmp dword &func
