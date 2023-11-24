@@ -1,0 +1,20 @@
+diff --git a/ext/opcache/ZendAccelerator.h b/ext/opcache/ZendAccelerator.h
+index bc92854c35..1e44fc2d37 100644
+--- a/ext/opcache/ZendAccelerator.h
++++ b/ext/opcache/ZendAccelerator.h
+@@ -249,7 +249,6 @@ typedef struct _zend_accel_shared_globals {
+ 	zend_ulong   oom_restarts;     /* number of restarts because of out of memory */
+ 	zend_ulong   hash_restarts;    /* number of restarts because of hash overflow */
+ 	zend_ulong   manual_restarts;  /* number of restarts scheduled by opcache_reset() */
+-	zend_accel_hash hash;             /* hash table for cached scripts */
+ 
+ 	size_t map_ptr_last;
+ 
+@@ -266,6 +265,7 @@ typedef struct _zend_accel_shared_globals {
+ 	LONGLONG   restart_in;
+ #endif
+ 	bool       restart_in_progress;
++	zend_accel_hash hash;             /* hash table for cached scripts */
+ 
+ 	/* Preloading */
+ 	zend_persistent_script *preload_script;

@@ -104,6 +104,10 @@ RUN git clone --depth 1 -b v1.3 https://github.com/intel/Updates-for-OSS-Perform
         sed -i "s/4.2.0/${wordpressversion}/g" WordpressTarget.php && \
         mv WordpressTarget_v5.urls WordpressTarget.urls && \
         mv dbdump_v5.sql.gz dbdump.sql.gz && \
+        gunzip -c dbdump.sql.gz > dbdump.sql && \
+        sed -i "s|'template','twentynineteen'|'template','twentytwentytwo'|g" dbdump.sql && \
+        sed -i "s|'stylesheet','twentynineteen'|'stylesheet','twentytwentytwo'|g" dbdump.sql && \
+        gzip -c dbdump.sql > dbdump.sql.gz && \
         rm wordpress-4.2.0.tar.gz; \
     fi
 
